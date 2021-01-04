@@ -1,0 +1,43 @@
+name: Publish Docs
+
+# Monthly, or on push
+on:
+  schedule:
+      - cron: 0 11 1 * *
+  push:
+    branches:
+      - main
+
+jobs: 
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Checkout submodules
+        shell: bash
+        run: |
+          auth_header="$(git config --local --get http.https://github.com/.extraheader)"
+          git submodule sync --recursive
+          git -c "http.extraheader=$auth_header" -c protocol.version=2 submodule update --init --force --recursive --depth=1
+
+      - name: Install Docker
+        shell: bash
+        run: curl -s https://get.docker.com | bash
+
+      - name: Build documentation
+        shell: bash
+        run: ./run.sh
+
+      - name: Check GitHub Pages status
+        uses: crazy-max/ghaction-github-status@v1
+        with:
+          pages_threshold: major_outage
+
+      - name: Deploy to GitHub Pages
+        if: success()
+        uses: crazy-max/ghaction-github-pages@v2
+        with:
+          target_branch: gh-pages
+          build_dir: gen/build/docs/javadoc
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
